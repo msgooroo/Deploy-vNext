@@ -59,24 +59,14 @@ namespace MSGooroo.Deploy {
 		}
 
 		private static bool PackageApp(SiteConfig config, SiteRevision rev, LogWriter log, string projFile) {
+			
+
 
 			try {
 				// Add a copy of the runtime locally, as it may have been installed for a single
 				// user which means it wont be accessible when run through IIS
 				string runtimeVersion = ConfigurationManager.Config["KRuntime"]
 					+ "." + ConfigurationManager.Config["KVersion"];
-
-				//if (!Directory.Exists(Path.Combine(config.WebPath, "packages"))) {
-
-				//	log.WriteMessage(string.Format("{0}: {1}> Creating a copy of the k-runtme...", config.Name, "Package"));
-				//	Directory.CreateDirectory(Path.Combine(config.WebPath, "packages"));
-
-				//	// Copy over the KRE
-				//	DirectoryCopy(
-				//		Path.Combine(ConfigurationManager.Config["KRuntimePackages"], runtimeVersion),
-				//		Path.Combine(config.WebPath, "packages", runtimeVersion),
-				//		true);
-				//}
 
 				var kpm = Path.Combine(
 					ConfigurationManager.Config["KRuntimePackages"],
@@ -105,15 +95,33 @@ namespace MSGooroo.Deploy {
 					}
 				);
 
+				// The Packager puts things all over the shop which we dont want.
+				// Delete everything except for the "/bin" folder
+				var wwwroot = Path.Combine(outDir, "wwwroot", "bin");
+                foreach (string file in Directory.GetFiles(wwwroot)) {
+					File.SetAttributes(file, FileAttributes.Normal);
+					File.Delete(file);
+				}
 
-				// Nearly there, just add a little bit to the k.ini file to make sure that
-				// it knows what version of the runtime to use.
-				//log.WriteMessage(string.Format("{0}: {1}> Adjusting k.ini", config.Name, "Package"));
-				//var kIniPath = Path.Combine(outDir, "public", "k.ini");
-				//var kSettings = string.Format("\r\nKRE_VERSION={0}\r\nKRE_HOME={1}",
-				//	ConfigurationManager.Config["KVersion"],
-				//	Path.Combine(config.WebPath));
-				//File.AppendAllText(kIniPath, kSettings);
+				foreach (string dir in Directory.GetDirectories(wwwroot)) {
+					if (!dir.EndsWith(Path.PathSeparator + "bin")) {
+						DeleteDirectory(dir);
+					}
+				}
+
+
+
+				// This may break for other apps where we dont have "src/src" - no idea why thats the case.
+				log.WriteMessage(string.Format("{0}: {1}> Copying packages", config.Name, "Package"));
+
+				// Copy over all the packages
+				DirectoryCopy(
+					Path.Combine(outDir, "approot", "packages"),
+					Path.Combine(outDir, "wwwroot", "packages"),
+					true);
+
+				// Remove the "approot"
+				DeleteDirectory(Path.Combine(outDir, "approot", "packages"));
 
 
 				if (hasError) {
@@ -124,7 +132,7 @@ namespace MSGooroo.Deploy {
 					return true;
 				}
 			} catch (Exception ex) {
-				log.WriteError(string.Format("{0}: {1}> Error 'PointIis to new directory':  {2} \r\n {3}",
+				log.WriteError(string.Format("{0}: {1}> Error 'PackageApp':  {2} \r\n {3}",
 					config.Name,
 					"Package",
 					ex.Message,
@@ -349,7 +357,7 @@ namespace MSGooroo.Deploy {
 			}
 
 			foreach (string dir in dirs) {
-				DeleteDirectory(dir);
+					DeleteDirectory(dir);
 			}
 
 			Directory.Delete(target_dir, false);
