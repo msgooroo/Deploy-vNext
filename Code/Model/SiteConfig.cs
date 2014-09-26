@@ -30,7 +30,7 @@ namespace MSGooroo.Deploy
 
 
 		public string WebPath { get { return System.IO.Path.Combine(Path, "web"); } }
-		public string SourcePath { get { return System.IO.Path.Combine(Path, "src"); } }
+		public string SourcePath { get { return System.IO.Path.Combine(Path, "git-src"); } }
 
 		public bool SourceIsEmpty {
 			get {

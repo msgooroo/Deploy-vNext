@@ -97,31 +97,54 @@ namespace MSGooroo.Deploy {
 
 				// The Packager puts things all over the shop which we dont want.
 				// Delete everything except for the "/bin" folder
-				var wwwroot = Path.Combine(outDir, "wwwroot", "bin");
-                foreach (string file in Directory.GetFiles(wwwroot)) {
-					File.SetAttributes(file, FileAttributes.Normal);
-					File.Delete(file);
+				var wwwroot = Path.Combine(outDir, "wwwroot");
+				foreach (string file in Directory.GetFiles(wwwroot)) {
+					if (!file.EndsWith("k.ini")) {
+						File.SetAttributes(file, FileAttributes.Normal);
+						File.Delete(file);
+					} else {
+						// Rewrite the k.ini file
+						var iniLines = File.ReadAllLines(file);
+
+						for(var i=0; i < iniLines.Length; i++) {
+							if (iniLines[i].StartsWith("APP_BASE")) {
+								iniLines[i] = "";
+                            }
+                        }
+						File.Delete(file);
+						File.WriteAllLines(file, iniLines);
+                    }
 				}
 
 				foreach (string dir in Directory.GetDirectories(wwwroot)) {
-					if (!dir.EndsWith(Path.PathSeparator + "bin")) {
+					if (!dir.EndsWith(Path.DirectorySeparatorChar + "bin")) {
 						DeleteDirectory(dir);
 					}
 				}
+
+				// Copy everything from the src into wwwroot...
+				DirectoryCopy(config.SourcePath, wwwroot, true);
 
 
 
 				// This may break for other apps where we dont have "src/src" - no idea why thats the case.
 				log.WriteMessage(string.Format("{0}: {1}> Copying packages", config.Name, "Package"));
 
-				// Copy over all the packages
+				//// Copy over all the packages
 				DirectoryCopy(
 					Path.Combine(outDir, "approot", "packages"),
 					Path.Combine(outDir, "wwwroot", "packages"),
 					true);
 
+				// Global.json
+				File.Copy(
+					Path.Combine(outDir, "approot", "global.json"),
+					Path.Combine(outDir, "wwwroot", "global.json")
+				);
+
+
 				// Remove the "approot"
-				DeleteDirectory(Path.Combine(outDir, "approot", "packages"));
+				DeleteDirectory(Path.Combine(outDir, "approot"));
 
 
 				if (hasError) {

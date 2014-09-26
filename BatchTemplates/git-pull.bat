@@ -1,5 +1,5 @@
 set GIT_PATH=<{GitPath}>
-set SRC_PATH=<{Path}>\src
+set SRC_PATH=<{Path}>\git-src
 set SSH_PATH=<{SshKeyPath}>
 set REPOSITORY=<{Repository}>
 set BRANCH=<{Branch}>
