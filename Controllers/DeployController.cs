@@ -13,29 +13,53 @@ namespace MSGooroo.Deploy.Controllers {
 	public class DeployController : Controller {
 
 
+		public IActionResult Test() {
+			return Json(new { Message = "Working!", Now = DateTime.UtcNow });
+
+		}
+
 		// GET: /<controller>/
 		public IActionResult Index(string deployKey) {
+
 			var path = AppDomain.CurrentDomain.BaseDirectory;
 			Console.WriteLine("Running in: " + path);
 
-			string sitesJson = File.ReadAllText(path + "\\sites.json");
+			var log = new LogWriter();
+			log.AddStream(new StreamWriter(Context.Response.Body));
 
-			var sites = JsonConvert.DeserializeObject<List<SiteConfig>>(sitesJson);
+			List<SiteConfig> sites = null;
+			string sitesJson = File.ReadAllText(path + "\\sites.json");
+			try {
+				sites = JsonConvert.DeserializeObject<List<SiteConfig>>(sitesJson);
+			} catch (Exception ex) {
+				log.WriteError(string.Format("Unable to read sites, json invald: {0}", ex.Message));
+				return null;
+			}
 
 			// Find the site with this identifier...
 			var site = sites.FirstOrDefault(x => x.DeployKey == deployKey);
 			if (site != null) {
+
+
 				// Do the deployment....
 				site.Initialize();
-				var log = new LogWriter();
-				log.AddStream(new StreamWriter(Context.Response.Body));
 
 				var rev = Git.Update(site, log);
 
-				Builder.Build(site, log);
+				if (site.ProjectFile.EndsWith("project.json")) {
+					Deployer.DeployVNext(site, rev, log);
+				} else {
+					if (Builder.Build(site, log)) {
+						Deployer.DeployClassic(site, rev, log);
+					}
 
-				Deployer.Deploy(site, rev, log);
-            }
+				}
+
+
+
+			} else {
+				log.WriteError(string.Format("Unable to find site with DeployKey: {0}", deployKey));
+			}
 
 
 			return View();

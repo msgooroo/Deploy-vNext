@@ -15,23 +15,92 @@ namespace MSGooroo.Deploy {
 		private static string[] NotErrors = new string[] {
 		};
 
-		public static bool Deploy(SiteConfig config, SiteRevision rev, LogWriter log) {
+		public static bool DeployVNext(SiteConfig config, SiteRevision rev, LogWriter log) {
 
 			ServerManager manager = new ServerManager();
-			Site site = null;
-			foreach (var s in manager.Sites) {
-				if (s.Name == config.IisName) {
-					site = s;
-				}
+			Site site = GetSite(config, log, manager);
+
+			var outPath = Path.Combine(config.WebPath, rev.Hash);
+			var projFile = Path.Combine(outPath, config.ProjectFile);
+
+
+			// Allow this stuff to function without a site, so that if we dont
+			// have a site we can create one and point it somewhere reasonable.
+			bool success =
+				RemoveOldDirectory(config, log, site, outPath)
+				&& PackageApp(config, rev, log, projFile);
+
+
+			if (success) {
+				success = PointIis(config, rev, log, manager, site, projFile)
+				&& RestartSite(config, rev, log, manager, site);
 			}
 
-			if (site == null) {
-				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" does not exist in IIS.",
+			if (!success) {
+				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" has been Failed to deploy: {3}",
 					config.Name,
 					"Deploy",
-					config.IisName));
+					config.IisName,
+					rev.Hash));
+				rev.State = "Deploy failed";
 				return false;
 			}
+			log.WriteMessage(string.Format("{0}: {1}> The site \"{2}\" has been updated to revision: {3}",
+				config.Name,
+				"Deploy",
+				config.IisName,
+				rev.Hash));
+
+			rev.State = "Complete";
+
+			return true;
+
+
+		}
+
+		private static bool PackageApp(SiteConfig config, SiteRevision rev, LogWriter log, string projFile) {
+
+			try {
+				var kpm = Path.Combine(ConfigurationManager.Config["KRuntime"], "kpm.cmd");
+                var outDir = Path.GetDirectoryName(projFile);
+				Directory.CreateDirectory(outDir);
+				bool hasError = false;
+				SimpleProcess.Run(
+					config.SourcePath,
+					kpm,
+					string.Format("pack --out {0}", outDir),
+					(message, isError) =>
+					{
+						if (isError) {
+							log.WriteError(string.Format("{0}: {1}> Error: {2}", config.Name, "Package", message));
+							hasError = true;
+						} else {
+							log.WriteMessage(string.Format("{0}: {1}> {2}", config.Name, "Package", message));
+						}
+					}
+				);
+				if (hasError) {
+					log.WriteError(string.Format("{0}: {1}> Failed.", config.Name, "Package"));
+					return false;
+				} else {
+					log.WriteMessage(string.Format("{0}: {1}> Completed successfully.", config.Name, "Package"));
+					return true;
+				}
+			} catch (Exception ex) {
+				log.WriteError(string.Format("{0}: {1}> Error 'PointIis to new directory':  {2} \r\n {3}",
+					config.Name,
+					"Package",
+					ex.Message,
+					ex.StackTrace
+				));
+				return false;
+			}
+		}
+
+		public static bool DeployClassic(SiteConfig config, SiteRevision rev, LogWriter log) {
+
+			ServerManager manager = new ServerManager();
+			Site site = GetSite(config, log, manager);
 
 
 
@@ -41,11 +110,18 @@ namespace MSGooroo.Deploy {
 			var outPath = Path.Combine(config.WebPath, rev.Hash);
 			var projFile = Path.Combine(outPath, config.ProjectFile);
 
+			// Allow this stuff to function without a site, so that if we dont
+			// have a site we can create one and point it somewhere reasonable.
 			bool success =
 				RemoveOldDirectory(config, log, site, outPath)
-				&& CreateNewDirectory(config, rev, log, outPath)
-				&& PointIis(config, rev, log, manager, site, projFile)
+				&& CreateNewDirectory(config, rev, log, outPath);
+
+			if (success) {
+
+				success = PointIis(config, rev, log, manager, site, projFile)
 				&& RestartSite(config, rev, log, manager, site);
+			}
+
 			if (!success) {
 				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" has been Failed to deploy: {3}",
 					config.Name,
@@ -66,6 +142,25 @@ namespace MSGooroo.Deploy {
 
 			return true;
 
+		}
+
+		private static Site GetSite(SiteConfig config, LogWriter log, ServerManager manager) {
+			Site site = null;
+			foreach (var s in manager.Sites) {
+				if (s.Name == config.IisName) {
+					site = s;
+				}
+			}
+
+			if (site == null) {
+				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" does not exist in IIS.",
+					config.Name,
+					"Deploy",
+					config.IisName));
+				//return false;
+			}
+
+			return site;
 		}
 
 		private static bool RestartSite(SiteConfig config, SiteRevision rev, LogWriter log, ServerManager manager, Site site) {
@@ -166,7 +261,7 @@ namespace MSGooroo.Deploy {
 			try {
 				if (Directory.Exists(outPath)) {
 
-					if (site.State == ObjectState.Started) {
+					if (site != null && site.State == ObjectState.Started) {
 						log.WriteMessage(string.Format("{0}: {1}> The site \"{2}\" is being stopped...",
 							config.Name,
 							"Deploy",

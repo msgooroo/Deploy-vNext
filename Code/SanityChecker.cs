@@ -30,7 +30,8 @@ namespace MSGooroo.Deploy {
 		private static bool CheckFiles(TextWriter output) {
 
 			return CheckFile(output, "GitPath", "git.exe")
-				&& CheckFile(output, "BuildExecutable", null);
+				&& CheckFile(output, "BuildExecutable", null)
+				&& CheckFile(output, "KRuntime", "kpm.cmd");
 
 
 
