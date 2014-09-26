@@ -42,6 +42,7 @@ namespace MSGooroo.Deploy {
 
 			foreach (var stream in _streams) {
 				stream.WriteLine(entry);
+				stream.Flush();
 			}
 			Console.BackgroundColor = ConsoleColor.Red;
 			Console.ForegroundColor = ConsoleColor.White;

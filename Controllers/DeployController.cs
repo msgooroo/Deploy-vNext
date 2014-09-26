@@ -20,6 +20,7 @@ namespace MSGooroo.Deploy.Controllers {
 
 		// GET: /<controller>/
 		public IActionResult Index(string deployKey) {
+			Context.Response.Headers["Content-Type"] = "text/plain";
 
 			var path = AppDomain.CurrentDomain.BaseDirectory;
 			Console.WriteLine("Running in: " + path);
@@ -51,10 +52,12 @@ namespace MSGooroo.Deploy.Controllers {
 				} else {
 					if (Builder.Build(site, log)) {
 						Deployer.DeployClassic(site, rev, log);
+
+
 					}
 
 				}
-
+				Context.Response.Body.Flush();
 
 
 			} else {
@@ -62,7 +65,7 @@ namespace MSGooroo.Deploy.Controllers {
 			}
 
 
-			return View();
+			return null;
 		}
 	}
 }

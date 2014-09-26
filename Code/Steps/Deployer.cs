@@ -30,14 +30,14 @@ namespace MSGooroo.Deploy {
 				RemoveOldDirectory(config, log, site, outPath)
 				&& PackageApp(config, rev, log, projFile);
 
-
+			var pointTo = Path.Combine(Path.GetDirectoryName(projFile), "wwwroot");
 			if (success) {
-				success = PointIis(config, rev, log, manager, site, projFile)
+				success = PointIis(config, rev, log, manager, site, pointTo)
 				&& RestartSite(config, rev, log, manager, site);
 			}
 
 			if (!success) {
-				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" has been Failed to deploy: {3}",
+				log.WriteError(string.Format("{0}: {1}> The site \"{2}\" has FAILED to deploy: {3}",
 					config.Name,
 					"Deploy",
 					config.IisName,
@@ -61,14 +61,39 @@ namespace MSGooroo.Deploy {
 		private static bool PackageApp(SiteConfig config, SiteRevision rev, LogWriter log, string projFile) {
 
 			try {
-				var kpm = Path.Combine(ConfigurationManager.Config["KRuntime"], "kpm.cmd");
-                var outDir = Path.GetDirectoryName(projFile);
+				// Add a copy of the runtime locally, as it may have been installed for a single
+				// user which means it wont be accessible when run through IIS
+				string runtimeVersion = ConfigurationManager.Config["KRuntime"]
+					+ "." + ConfigurationManager.Config["KVersion"];
+
+				//if (!Directory.Exists(Path.Combine(config.WebPath, "packages"))) {
+
+				//	log.WriteMessage(string.Format("{0}: {1}> Creating a copy of the k-runtme...", config.Name, "Package"));
+				//	Directory.CreateDirectory(Path.Combine(config.WebPath, "packages"));
+
+				//	// Copy over the KRE
+				//	DirectoryCopy(
+				//		Path.Combine(ConfigurationManager.Config["KRuntimePackages"], runtimeVersion),
+				//		Path.Combine(config.WebPath, "packages", runtimeVersion),
+				//		true);
+				//}
+
+				var kpm = Path.Combine(
+					ConfigurationManager.Config["KRuntimePackages"],
+					runtimeVersion,
+					"bin",
+					"kpm.cmd"
+				);
+
+				log.WriteMessage(string.Format("{0}: {1}> Packaging...", config.Name, "Package"));
+
+				var outDir = Path.GetDirectoryName(projFile);
 				Directory.CreateDirectory(outDir);
 				bool hasError = false;
 				SimpleProcess.Run(
 					config.SourcePath,
 					kpm,
-					string.Format("pack --out {0}", outDir),
+					string.Format("pack --out {0} --runtime {1} --appfolder wwwroot", outDir, runtimeVersion),
 					(message, isError) =>
 					{
 						if (isError) {
@@ -79,8 +104,20 @@ namespace MSGooroo.Deploy {
 						}
 					}
 				);
+
+
+				// Nearly there, just add a little bit to the k.ini file to make sure that
+				// it knows what version of the runtime to use.
+				//log.WriteMessage(string.Format("{0}: {1}> Adjusting k.ini", config.Name, "Package"));
+				//var kIniPath = Path.Combine(outDir, "public", "k.ini");
+				//var kSettings = string.Format("\r\nKRE_VERSION={0}\r\nKRE_HOME={1}",
+				//	ConfigurationManager.Config["KVersion"],
+				//	Path.Combine(config.WebPath));
+				//File.AppendAllText(kIniPath, kSettings);
+
+
 				if (hasError) {
-					log.WriteError(string.Format("{0}: {1}> Failed.", config.Name, "Package"));
+					log.WriteError(string.Format("{ 0}: {1}> Failed.", config.Name, "Package"));
 					return false;
 				} else {
 					log.WriteMessage(string.Format("{0}: {1}> Completed successfully.", config.Name, "Package"));
@@ -118,7 +155,7 @@ namespace MSGooroo.Deploy {
 
 			if (success) {
 
-				success = PointIis(config, rev, log, manager, site, projFile)
+				success = PointIis(config, rev, log, manager, site, Path.GetDirectoryName(projFile))
 				&& RestartSite(config, rev, log, manager, site);
 			}
 
@@ -203,7 +240,7 @@ namespace MSGooroo.Deploy {
 			}
 		}
 
-		private static bool PointIis(SiteConfig config, SiteRevision rev, LogWriter log, ServerManager manager, Site site, string projFile) {
+		private static bool PointIis(SiteConfig config, SiteRevision rev, LogWriter log, ServerManager manager, Site site, string pointPath) {
 			try {
 				if (site.Applications.Count != 1) {
 					log.WriteError(string.Format("{0}: {1}> The site \"{2}\" contains multiple applications.  I'm confused as to which path to update.", config.Name, "Deploy", config.IisName));
@@ -221,7 +258,7 @@ namespace MSGooroo.Deploy {
 					config.IisName,
 					rev.Hash
 				));
-				site.Applications[0].VirtualDirectories[0].PhysicalPath = Path.GetDirectoryName(projFile);
+				site.Applications[0].VirtualDirectories[0].PhysicalPath = pointPath;
 				manager.CommitChanges();
 				return true;
 			} catch (Exception ex) {
@@ -284,7 +321,7 @@ namespace MSGooroo.Deploy {
 
 						}
 					}
-					Directory.Delete(outPath, true);
+					DeleteDirectory(outPath);
 
 				}
 				return true;
@@ -299,6 +336,23 @@ namespace MSGooroo.Deploy {
 
 
 			}
+		}
+
+
+		public static void DeleteDirectory(string target_dir) {
+			string[] files = Directory.GetFiles(target_dir);
+			string[] dirs = Directory.GetDirectories(target_dir);
+
+			foreach (string file in files) {
+				File.SetAttributes(file, FileAttributes.Normal);
+				File.Delete(file);
+			}
+
+			foreach (string dir in dirs) {
+				DeleteDirectory(dir);
+			}
+
+			Directory.Delete(target_dir, false);
 		}
 
 

@@ -1,5 +1,7 @@
 ﻿{
     "GitPath": "C:\\Program Files (x86)\\Git\\bin",
     "BuildExecutable": "C:\\Program Files (x86)\\MSBuild\\14.0\\Bin\\MSBuild.exe",
-    "KRuntime": "C:\\Users\\Tez\\.kre\\packages\\KRE-svrc50-x64.1.0.0-alpha3\\bin"
+    "KRuntimePackages": "C:\\Users\\Tez\\.kre\\packages",
+    "KVersion": "1.0.0-alpha3",
+    "KRuntime": "KRE-svr50-x64"
 }
