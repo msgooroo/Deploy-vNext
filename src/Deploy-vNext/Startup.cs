@@ -1,12 +1,14 @@
 ﻿using System;
 using Microsoft.AspNet.Builder;
-using Microsoft.AspNet.Routing;
-using Microsoft.Framework.ConfigurationModel;
 using Microsoft.Framework.DependencyInjection;
+using Microsoft.AspNet.Diagnostics;
+using Microsoft.AspNet.Routing;
+
+using Microsoft.Framework.ConfigurationModel;
 
 namespace MSGooroo.Deploy {
 	public class Startup {
-		public void Configure(IBuilder app) {
+		public void Configure(IApplicationBuilder app) {
 			// Setup configuration sources
 			var configuration = new Configuration();
 			configuration.AddJsonFile("config.json");
