@@ -29,7 +29,7 @@ namespace MSGooroo.Deploy.Controllers {
 			log.AddStream(new StreamWriter(Context.Response.Body));
 
 			List<SiteConfig> sites = null;
-			string sitesJson = File.ReadAllText(path + "\\sites.json");
+			string sitesJson = System.IO.File.ReadAllText(path + "\\sites.json");
 			try {
 				sites = JsonConvert.DeserializeObject<List<SiteConfig>>(sitesJson);
 			} catch (Exception ex) {
